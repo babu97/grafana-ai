@@ -15,6 +15,12 @@ terraform {
       version = "~> 3.6"
     }
   }
+
+  # State lives in S3 (shared settings in ../backend.hcl), so any machine with
+  # AWS access sees the same state. Locking stops two machines applying at once.
+  backend "s3" {
+    key = "gpu-demo/platform.tfstate"
+  }
 }
 
 # The AWS Load Balancer Controller needs an IAM role (created in AWS).

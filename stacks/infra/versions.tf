@@ -8,8 +8,11 @@ terraform {
     }
   }
 
-  # Local state at stacks/infra/terraform.tfstate. The platform stack reads it
-  # with a terraform_remote_state data source to find the cluster.
+  # State lives in S3 (shared settings in ../backend.hcl), so any machine with
+  # AWS access sees the same state. Locking stops two machines applying at once.
+  backend "s3" {
+    key = "gpu-demo/infra.tfstate"
+  }
 }
 
 provider "aws" {

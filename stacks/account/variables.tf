@@ -14,8 +14,10 @@ variable "monthly_budget_usd" {
   default = 25
 }
 
-variable "alert_emails" {
-  type = list(string)
+variable "alert_emails_ssm_parameter" {
+  description = "SSM StringList with the budget alert e-mails (kept out of git). Set with: aws ssm put-parameter --type StringList --name /gpu-demo/account/alert-emails --value 'a@x.com,b@y.com'"
+  type        = string
+  default     = "/gpu-demo/account/alert-emails"
 }
 
 variable "request_gpu_quota" {

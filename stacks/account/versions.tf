@@ -8,8 +8,11 @@ terraform {
     }
   }
 
-  # Local state is fine for a throwaway demo. This stack is long-lived though,
-  # so don't delete stacks/account/terraform.tfstate.
+  # State lives in S3 (shared settings in ../backend.hcl), so any machine with
+  # AWS access sees the same state. Locking stops two machines applying at once.
+  backend "s3" {
+    key = "gpu-demo/account.tfstate"
+  }
 }
 
 provider "aws" {

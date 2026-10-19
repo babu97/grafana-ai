@@ -1,13 +1,21 @@
 # This stack reads BOTH lower layers: infra (how to reach the cluster) and
 # platform (where Prometheus lives, which namespace Grafana watches).
 data "terraform_remote_state" "infra" {
-  backend = "local"
-  config  = { path = "${path.module}/../infra/terraform.tfstate" }
+  backend = "s3"
+  config = {
+    bucket = var.state_bucket
+    key    = "gpu-demo/infra.tfstate"
+    region = var.state_region
+  }
 }
 
 data "terraform_remote_state" "platform" {
-  backend = "local"
-  config  = { path = "${path.module}/../platform/terraform.tfstate" }
+  backend = "s3"
+  config = {
+    bucket = var.state_bucket
+    key    = "gpu-demo/platform.tfstate"
+    region = var.state_region
+  }
 }
 
 locals {

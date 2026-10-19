@@ -3,10 +3,20 @@ variable "grafana_url" {
   type        = string
 }
 
-variable "grafana_sa_token" {
-  description = "Service account token (glsa_...) with Editor role."
-  type        = string
-  sensitive   = true
+# --- Secrets live in AWS SSM Parameter Store (SecureString), not in files ----
+# Store/rotate them with:
+#   aws ssm put-parameter --overwrite --type SecureString \
+#     --name /gpu-demo/grafana-cloud/sa-token         --value 'glsa_...'
+#   aws ssm put-parameter --overwrite --type SecureString \
+#     --name /gpu-demo/grafana-cloud/prom-write-token --value 'glc_...=='
+variable "ssm_prefix" {
+  type    = string
+  default = "/gpu-demo/grafana-cloud"
+}
+
+variable "ssm_region" {
+  type    = string
+  default = "eu-west-1"
 }
 
 # --- Metrics push (used by the platform stack's Prometheus remote_write) -----
@@ -22,9 +32,3 @@ variable "prom_username" {
   default     = null
 }
 
-variable "prom_write_token" {
-  description = "Access policy token (glc_...) with metrics:write."
-  type        = string
-  default     = null
-  sensitive   = true
-}

@@ -4,7 +4,22 @@
 UP_ORDER   := infra platform workload
 DOWN_ORDER := workload platform infra
 
-.PHONY: account grafana-cloud up down fmt validate build-rag apply-% destroy-% plan-%
+.PHONY: bootstrap account grafana-cloud up down fmt validate build-rag apply-% destroy-% plan-%
+
+# --- New machine ------------------------------------------------------------
+# Prereq: AWS credentials (`aws configure` / `aws sso login`) and `gh auth login`.
+# State comes from S3 and secrets from SSM, so nothing else needs copying.
+ALL_STACKS := account grafana-cloud infra platform workload
+
+bootstrap:
+	brew bundle --file=Brewfile
+	@aws sts get-caller-identity --query Account --output text >/dev/null && echo "✓ AWS credentials work"
+	@[ -d $(RAG_DIR)/.git ] || gh repo clone RuthKerubo/llm-load-testing-demo $(RAG_DIR)
+	@echo "✓ app repo at $(RAG_DIR)"
+	@for s in $(ALL_STACKS); do terraform -chdir=stacks/$$s init -input=false -backend-config=../backend.hcl >/dev/null && echo "✓ terraform init $$s (state in S3)" || exit 1; done
+	@if aws eks describe-cluster --name gpu-demo --region eu-west-1 >/dev/null 2>&1; then \
+	  aws eks update-kubeconfig --name gpu-demo --region eu-west-1 >/dev/null && echo "✓ kubectl connected to gpu-demo"; \
+	else echo "• cluster not running — 'make up' to build it"; fi
 
 account: apply-account
 
@@ -14,8 +29,9 @@ up: $(addprefix apply-,$(UP_ORDER))
 
 down: $(addprefix destroy-,$(DOWN_ORDER))
 
+# Every stack keeps its state in S3; shared backend settings live in stacks/backend.hcl.
 init-%:
-	terraform -chdir=stacks/$* init -upgrade
+	terraform -chdir=stacks/$* init -upgrade -backend-config=../backend.hcl
 
 plan-%: init-%
 	terraform -chdir=stacks/$* plan
@@ -30,7 +46,7 @@ fmt:
 	terraform fmt -recursive
 
 validate:
-	@for s in stacks/*; do echo "== $$s"; terraform -chdir=$$s init -backend=false -input=false >/dev/null && terraform -chdir=$$s validate || exit 1; done
+	@for s in stacks/*/; do echo "== $$s"; terraform -chdir=$$s init -backend=false -input=false >/dev/null && terraform -chdir=$$s validate || exit 1; done
 
 # --- RAG app image (llm-load-testing-demo) -----------------------------------
 # Your Mac is arm64, EKS nodes are amd64: buildx cross-builds via emulation.

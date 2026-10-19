@@ -1,12 +1,14 @@
 # -----------------------------------------------------------------------------
-# Read the infra stack's outputs straight from its state file.
+# Read the infra stack's outputs straight from its state (in S3).
 # This is how separate stacks pass values to each other: infra writes outputs,
 # platform reads them. If infra isn't applied yet, this fails early and loudly.
 # -----------------------------------------------------------------------------
 data "terraform_remote_state" "infra" {
-  backend = "local"
+  backend = "s3"
   config = {
-    path = "${path.module}/../infra/terraform.tfstate"
+    bucket = var.state_bucket
+    key    = "gpu-demo/infra.tfstate"
+    region = var.state_region
   }
 }
 
@@ -17,9 +19,11 @@ locals {
 # Grafana Cloud credentials, if that stack has them. `defaults` keeps this
 # working before stacks/grafana-cloud exists or has metrics credentials.
 data "terraform_remote_state" "grafana_cloud" {
-  backend = "local"
+  backend = "s3"
   config = {
-    path = "${path.module}/../grafana-cloud/terraform.tfstate"
+    bucket = var.state_bucket
+    key    = "gpu-demo/grafana-cloud.tfstate"
+    region = var.state_region
   }
   defaults = {
     prometheus_remote_write = null

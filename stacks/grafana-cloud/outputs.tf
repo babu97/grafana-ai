@@ -3,12 +3,12 @@ output "dashboard_urls" {
 }
 
 # The platform stack reads this (terraform_remote_state) to configure
-# Prometheus remote_write. null until prom_username + prom_write_token are set.
+# Prometheus remote_write. null until prom_username is set.
 output "prometheus_remote_write" {
   sensitive = true
-  value = var.prom_username == null || var.prom_write_token == null ? null : {
+  value = var.prom_username == null ? null : {
     url      = var.prom_remote_write_url
     username = var.prom_username
-    password = var.prom_write_token
+    password = data.aws_ssm_parameter.prom_write_token.value
   }
 }

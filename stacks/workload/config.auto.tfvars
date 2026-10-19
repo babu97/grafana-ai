@@ -38,5 +38,11 @@ rag_public_allowed_cidrs = ["0.0.0.0/0"] # open to everyone
 # rag_top_k     = 5    # default products per question (k6 uses this too)
 # rag_max_top_k = 15   # 1-20; each product adds ~160 prompt tokens
 
+# --- Admission control (429 "busy" instead of a 2-minute wait) ---------------
+# Set to 0 to turn it off and show the collapse again. Measured on 2 T4s:
+# TTFT p95 0.7 s at ~90 requests running, 3.5 s at ~170 -> 128 holds the SLO.
+rag_max_in_flight    = 128
+rag_admission_wait_s = 0.5
+
 # HTTPS via CloudFront (*.cloudfront.net). The ALB then only accepts CloudFront.
 rag_https = true

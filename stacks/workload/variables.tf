@@ -97,6 +97,18 @@ variable "rag_top_k" {
   default     = 5
 }
 
+variable "rag_max_in_flight" {
+  description = "Admission control: shopper requests in flight before the app answers 429 (0 = off)."
+  type        = number
+  default     = 0
+}
+
+variable "rag_admission_wait_s" {
+  description = "Seconds a request may wait for a free slot before the 429."
+  type        = number
+  default     = 0.5
+}
+
 variable "rag_max_top_k" {
   description = "Most products a shopper may request (1-20). Enforced by the API and the page."
   type        = number

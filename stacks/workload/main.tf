@@ -97,6 +97,9 @@ module "rag_app" {
   top_k        = var.rag_top_k
   max_top_k    = var.rag_max_top_k
 
+  max_llm_in_flight = var.rag_max_in_flight
+  admission_wait_s  = var.rag_admission_wait_s
+
   expose_publicly      = var.rag_expose_publicly
   public_allowed_cidrs = var.rag_public_allowed_cidrs
 

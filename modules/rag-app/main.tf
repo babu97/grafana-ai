@@ -243,6 +243,14 @@ resource "kubernetes_deployment_v1" "app" {
             name  = "MAX_TOP_K"
             value = tostring(var.max_top_k)
           }
+          env {
+            name  = "MAX_LLM_IN_FLIGHT"
+            value = tostring(var.max_llm_in_flight)
+          }
+          env {
+            name  = "ADMISSION_WAIT_S"
+            value = tostring(var.admission_wait_s)
+          }
 
           port {
             name           = "http"

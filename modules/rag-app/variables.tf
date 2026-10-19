@@ -90,3 +90,19 @@ variable "cloudfront_origin" {
   default   = null
   sensitive = true
 }
+
+variable "max_llm_in_flight" {
+  description = <<-EOT
+    Admission control: most shopper requests in flight at once. Beyond it a
+    request waits up to admission_wait_s, then gets an instant 429 "busy"
+    instead of queueing on the GPU for minutes. 0 = no limit.
+  EOT
+  type        = number
+  default     = 0
+}
+
+variable "admission_wait_s" {
+  description = "How long a request may wait for a free slot before the 429."
+  type        = number
+  default     = 0.5
+}

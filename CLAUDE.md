@@ -82,15 +82,23 @@ Scale GPUs without destroying (Terraform ignores desired_size after creation):
 - `loadaware`/`kvaware` routing need LMCache — without it they silently fall back.
 - CloudFront waits max 60 s for first byte → overloaded answers become 504.
 - Kubernetes label values can't contain `:` (`qwen2.5:3b` → label `qwen2.5-3b`).
+- **Default kubectl context on the owner's machine is another team's cluster** (`adhki`, eu-west-2).
+  Never run kubectl against it; use a separate kubeconfig (`aws eks update-kubeconfig ... --kubeconfig <file>`).
+- Destroy needs the app repo cloned too (workload reads `k6/black_friday.js` via `file()`).
+- Spot T4s in eu-west-1 get reclaimed (2× in 2 h on 2026-10-19); replacement vLLM pod needs ~10-15 min.
+- Grafana Cloud dashboards are Terraform-managed: "Save" in the UI is overwritten on the next apply.
+- App → vLLM timeout is 120 s (`AsyncOpenAI(timeout=120)`); median = p90 = 2m0s in k6 means that timeout.
 
 ## Results so far (details in notes/)
 - Chat sessions, 2 GPUs: prefixaware vs roundrobin → TTFT p50 0.2 s vs 14 s, cache hits ~90 % vs ~45 % — once working set > one GPU's KV cache.
 - RAG with a shared system prompt: prefixaware sends ALL traffic to one GPU (other idle) → SLO broke at ~5.7 req/s vs ~10.8 with roundrobin.
 - Fixed 30 k6 questions: prefix cache ~97 % → looked like ~11 req/s capacity. Randomised questions (default now): ~4.6 req/s real capacity, 26 % errors, congestion collapse (goodput → 0.55 req/s) past the wall.
 - GPU util reads 100 % from ~1 req/s — useless for capacity. T4s hit 70 W power cap.
-- Per-T4 ceiling (RAG, varied prompts): ~2.3 req/s.
+- Per-T4 ceiling (RAG, varied prompts): ~2.3 req/s. The wall is `max_num_seqs` 128/GPU (KV only 63 %).
+- Admission control (`rag_max_in_flight = 128`): failed 24 % → 0 %, TTFT p95 ~3 min → 1.7 s, +13 % answered
+  (2026-10-19, reproduced twice). Set 0 to show the collapse.
 
 ## Ideas not yet built
-Admission control (429 when saturated), autoscaling on queue depth/TTFT,
+Autoscaling on queue depth/TTFT,
 k6 results to Grafana Cloud k6 (`-o cloud`), WAF rate limit on CloudFront,
 custom domain for the shop URL, LMCache for kvaware/loadaware routing.

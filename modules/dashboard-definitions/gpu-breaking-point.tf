@@ -18,7 +18,73 @@ locals {
   # (the vLLM Service name) so router copies aren't double-counted.
   # Panels below show one line per engine pod, so the 2 GPUs are visible.
 
+  # "Have we hit the ceiling?" in one expression: 0 = headroom, 1 = requests
+  # queueing (no free slots), 2-3 = shoppers waiting longer than the SLO.
+  # Each side falls back to 0 when idle, when there is no data to compare.
+  ceiling_state = join(" + ", [
+    "((sum(vllm:num_requests_waiting{job=\"vllm\"}) > bool 0) or vector(0))",
+    "2 * ((histogram_quantile(0.95, sum by (le) (rate(rag_ttft_seconds_bucket[1m]))) > bool ${var.ttft_slo_seconds}) or vector(0))",
+  ])
+
   rows = [
+    {
+      # The punchline in four panels. The ceiling is where "completed" stops
+      # following "sent"; past it, "good answers" falls (congestion collapse).
+      title = "Capacity: have we hit the ceiling?"
+      panels = [
+        {
+          title = "Have we hit the ceiling?", type = "stat", unit = "none"
+          targets = [
+            { expr = local.ceiling_state, legend = "state" },
+          ]
+          thresholds = [
+            { color = "green", value = null },
+            { color = "orange", value = 1 },
+            { color = "red", value = 2 },
+          ]
+          mappings = [
+            { type = "value", options = { "0" = { text = "OK: headroom" } } },
+            { type = "value", options = { "1" = { text = "AT CEILING: queueing" } } },
+            { type = "range", options = { from = 2, to = 3, result = { text = "OVER: SLO broken" } } },
+          ]
+          options = {
+            colorMode     = "background"
+            graphMode     = "none"
+            justifyMode   = "center"
+            textMode      = "value"
+            reduceOptions = { calcs = ["lastNotNull"], fields = "", values = false }
+          }
+        },
+        {
+          title = "Sent vs completed vs good answers", unit = "reqps"
+          targets = [
+            { expr = "sum(rate(k6_http_reqs_total[1m]))", legend = "sent (k6)" },
+            { expr = "sum(rate(vllm:request_success_total{job=\"vllm\"}[1m]))", legend = "completed (GPUs)" },
+            { expr = "sum(rate(rag_ttft_seconds_bucket{le=\"${format("%.1f", var.ttft_slo_seconds)}\"}[1m]))", legend = "good: first word < ${var.ttft_slo_seconds} s" },
+            { expr = "sum(rate(rag_rejected_total[1m]))", legend = "rejected (429 busy)" },
+          ]
+        },
+        {
+          title = "Request slots: running vs capacity", unit = "short"
+          targets = [
+            { expr = "count(vllm:num_requests_running{job=\"vllm\"}) * ${var.max_num_seqs}", legend = "capacity (${var.max_num_seqs} per GPU)" },
+            { expr = "sum(vllm:num_requests_running{job=\"vllm\"})", legend = "running" },
+            { expr = "sum(vllm:num_requests_waiting{job=\"vllm\"})", legend = "waiting (no free slot)" },
+          ]
+        },
+        {
+          title = "Shopper time to first word vs SLO", unit = "s"
+          targets = [
+            { expr = "histogram_quantile(0.95, sum by (le) (rate(rag_ttft_seconds_bucket[1m])))", legend = "p95" },
+          ]
+          thresholds = [
+            { color = "green", value = null },
+            { color = "red", value = var.ttft_slo_seconds },
+          ]
+          threshold_style = "line+area"
+        },
+      ]
+    },
     {
       title = "GPU (DCGM exporter)"
       panels = [
@@ -133,6 +199,7 @@ locals {
           title = "Requests in flight (app)", unit = "short"
           targets = [
             { expr = "sum(rag_requests_in_flight)", legend = "in flight" },
+            { expr = "max(rag_admission_limit) > 0", legend = "admission limit" },
           ]
         },
         {
@@ -217,7 +284,7 @@ locals {
       # The panels in that row, equal width.
       [for pi, p in row.panels : {
         id         = ri * 100 + pi + 2
-        type       = "timeseries"
+        type       = try(p.type, "timeseries")
         title      = p.title
         datasource = local.ds
         gridPos = {
@@ -227,17 +294,21 @@ locals {
           h = local.row_height
         }
         fieldConfig = {
-          # merge() + a filtered map adds "max" only for panels that set it.
+          # merge() + a filtered map adds "max" only for panels that set it;
+          # likewise thresholds/mappings, and a threshold line on the graph.
           defaults = merge(
             { unit = p.unit, min = 0 },
             { for k, v in { max = try(p.max, null) } : k => v if v != null },
+            try({ thresholds = { mode = "absolute", steps = p.thresholds }, color = { mode = "thresholds" } }, {}),
+            try({ mappings = p.mappings }, {}),
+            try({ custom = { thresholdsStyle = { mode = p.threshold_style } } }, {}),
           )
           overrides = []
         }
-        options = {
+        options = try(p.options, {
           legend  = { displayMode = "list", placement = "bottom", showLegend = true }
           tooltip = { mode = "multi", sort = "desc" }
-        }
+        })
         targets = [for ti, t in p.targets : {
           refId        = local.ref_ids[ti]
           datasource   = local.ds

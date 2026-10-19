@@ -39,7 +39,7 @@ plan-%: init-%
 apply-%: init-%
 	terraform -chdir=stacks/$* apply
 
-destroy-%:
+destroy-%: init-%
 	terraform -chdir=stacks/$* destroy
 
 fmt:
@@ -57,7 +57,7 @@ RAG_DIR  := llm-load-testing-demo
 RAG_REPO  = $(shell terraform -chdir=stacks/infra output -raw rag_app_repository_url)
 # Commit sha, plus "-dirty-<timestamp>" when there are uncommitted changes, so
 # every build gets a unique tag and Terraform sees a change to roll out.
-RAG_TAG  := $(shell git -C $(RAG_DIR) rev-parse --short HEAD)$(shell git -C $(RAG_DIR) diff --quiet HEAD || echo "-dirty-$$(date +%Y%m%d%H%M%S)")
+RAG_TAG  := $(shell git -C $(RAG_DIR) rev-parse --short HEAD 2>/dev/null)$(shell git -C $(RAG_DIR) diff --quiet HEAD 2>/dev/null || echo "-dirty-$$(date +%Y%m%d%H%M%S)")
 REGION    = $(shell terraform -chdir=stacks/infra output -raw region)
 
 build-rag:

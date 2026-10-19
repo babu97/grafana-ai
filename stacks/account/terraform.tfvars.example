@@ -1,0 +1,4 @@
+# cp terraform.tfvars.example terraform.tfvars
+alert_emails       = ["you@example.com"]
+monthly_budget_usd = 25 # ≈ £20
+request_gpu_quota  = false # on-demand G/VT quota already 768 vCPUs in eu-west-1

@@ -1,0 +1,25 @@
+// CloudFront Function (viewer request): only let allowlisted IPv4 clients in.
+// Runs at the edge before anything reaches AWS in eu-west-1. Free tier friendly.
+var ALLOWED = ${allowed_json};
+
+function ipToInt(ip) {
+  var p = ip.split('.');
+  return (((+p[0]) << 24) >>> 0) + ((+p[1]) << 16) + ((+p[2]) << 8) + (+p[3]);
+}
+
+function inCidr(ip, cidr) {
+  var parts = cidr.split('/');
+  var bits = parts.length > 1 ? +parts[1] : 32;
+  if (bits === 0) return true;
+  var mask = (~0 << (32 - bits)) >>> 0;
+  return ((ipToInt(ip) & mask) >>> 0) === ((ipToInt(parts[0]) & mask) >>> 0);
+}
+
+function handler(event) {
+  var ip = event.viewer.ip;
+  for (var i = 0; i < ALLOWED.length; i++) {
+    if (ALLOWED[i] === '0.0.0.0/0') return event.request;
+    if (ip.indexOf(':') === -1 && inCidr(ip, ALLOWED[i])) return event.request;
+  }
+  return { statusCode: 403, statusDescription: 'Forbidden' };
+}
